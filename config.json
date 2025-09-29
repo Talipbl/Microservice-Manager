@@ -1,0 +1,32 @@
+{
+    "AudibleWarning": true,
+    "Categories": [
+        {
+            "Name": "Main",
+            "Services": [
+                {
+                    "Category": "Portal",
+                    "IsFavorite": true,
+                    "Name": "Service1",
+                    "Path": "C:\\Users\\user\\source\\repos\\web\\src\\WebService1"
+                },
+                {
+                    "Category": "Portal",
+                    "IsFavorite": false,
+                    "Name": "Service2",
+                    "Path": "C:\\Users\\user\\source\\repos\\web\\src\\WebService2"
+                }
+            ]
+        }
+    ],
+    "FlushSequnece": 100,
+    "IsLimitedOperation": true,
+    "IsMonitored": true,
+    "LogLineLimit": 500,
+    "MaxConcurrentStarts": 3,
+    "MaximumMemoryUsage": 2000,
+    "MaximumMemoryUsagePerMicroservice": 500,
+    "RestartLimit": 2,
+    "RestartOnError": true,
+    "StartupDelay": 30000
+}
