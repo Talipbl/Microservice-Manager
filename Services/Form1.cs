@@ -288,7 +288,6 @@ namespace Services
                 toollblServices.Text = $"Working Services: {_processManager.GetRunningServices().Count}/{_categories.Sum(c => c.Services.Count)}";
             });
         }
-
         private void cmbCategories_SelectedIndexChanged(object sender, EventArgs e)
         {
             var selectedCategory = cmbCategories.SelectedItem as Category;
@@ -402,6 +401,13 @@ namespace Services
         }
         private void toolbtnSettings_Click(object sender, EventArgs e)
         {
+            var anyRunning = _processManager.GetRunningServices().Count > 0;
+            if (anyRunning)
+            {
+                MessageBox.Show("Please stop all running services before changing settings.", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
             Settings settings = new();
             settings.ShowDialog();
             InitSettings();
@@ -590,7 +596,7 @@ namespace Services
                         if (service.CurrentAction is ServiceStatus.Running && !string.IsNullOrEmpty(service.ListeningUrl))
                         {
 
-                            var manageItem = new ToolStripMenuItem("Go To Web");
+                            var manageItem = new ToolStripMenuItem("Manage");
                             manageItem.Image = ByteHelper.ByteArrayToImage(Properties.Resources.Web);
                             manageItem.Click += (s, e) =>
                             {
@@ -646,7 +652,7 @@ namespace Services
             var flushTimer = new Timer { Interval = _configurations.FlushSequnece };
             flushTimer.Elapsed += (s, e) =>
             {
-                int batchSize = 200;
+                int batchSize = _maxLogLines;
                 while (batchSize-- > 0 && _logQueue.TryDequeue(out var entry))
                 {
                     AppendLog(entry.service, entry.message, entry.label);

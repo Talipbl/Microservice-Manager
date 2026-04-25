@@ -9,10 +9,9 @@ namespace Services
     public class ProcessManager
     {
         private readonly ConcurrentDictionary<Microservice, Process> _processMap = new();
+        private readonly ConcurrentDictionary<string, CancellationTokenSource> _processQueue = new();
         private SemaphoreSlim _semaphore;
         private readonly int _maxConcurrent;
-        private CancellationTokenSource _cts;
-        private CancellationToken Token => _cts.Token;
 
         private Configurations _configurations;
 
@@ -22,7 +21,6 @@ namespace Services
 
         public ProcessManager(int maxConcurrent = 5)
         {
-            _cts = new CancellationTokenSource();
             _maxConcurrent = maxConcurrent;
             _semaphore = new SemaphoreSlim(_maxConcurrent, _maxConcurrent);
             _configurations = ConfigManager.LoadConfig();
@@ -38,10 +36,13 @@ namespace Services
 
             OnStatus(service.Name, ServiceStatus.Queued);
 
-            await _semaphore.WaitAsync(Token);
-
             try
             {
+                using var cts = new CancellationTokenSource();
+                _processQueue[service.Name] = cts;
+                await _semaphore.WaitAsync(cts.Token);
+                _processQueue.TryRemove(service.Name, out _);
+
                 var process = new Process
                 {
                     StartInfo = new ProcessStartInfo("dotnet", arguments)
@@ -150,6 +151,7 @@ namespace Services
             }
             catch (OperationCanceledException)
             {
+                _processQueue.TryRemove(service.Name, out _);
                 OnStatus(service.Name, ServiceStatus.Canceled);
                 OnLog(service.Name, $"Service {service.Name} cancelled before start.", DataLabel.Information);
                 ReleaseSemaphore();
@@ -165,6 +167,16 @@ namespace Services
         {
             if (!_processMap.TryGetValue(service, out var process))
             {
+                if (_processQueue.TryGetValue(service.Name, out var cts))
+                {
+                    cts.Cancel();
+                    _processQueue.TryRemove(service.Name, out _);
+
+                    OnStatus(service.Name, ServiceStatus.Canceled);
+                    OnLog(service.Name, $"Service {service.Name} cancellation requested.", DataLabel.Information);
+                    return;
+                }
+                _processQueue.TryRemove(service.Name, out _);
                 OnLog(service.Name, ProcessConsts.ServiceNotRunning, DataLabel.Warning);
                 return;
             }
@@ -216,12 +228,15 @@ namespace Services
                     OnStatus(service.Name, ServiceStatus.Stopped);
                     OnLog(service.Name, $"Service {service.Name} stopped.", DataLabel.Warning);
                 }
+
+                foreach (var item in _processQueue)
+                {
+                    item.Value.Cancel();
+                    _processQueue.TryRemove(item.Key, out _);
+                }
             }
             finally
             {
-                _cts.Cancel();
-                _cts.Dispose();
-                _cts = new CancellationTokenSource();
                 _semaphore = new SemaphoreSlim(_maxConcurrent, _maxConcurrent);
             }
         }
